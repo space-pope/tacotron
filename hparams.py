@@ -48,12 +48,21 @@ hparams = tf.contrib.training.HParams(
   adam_beta2=0.999,
   initial_learning_rate=0.001,
   learning_rate_decay_halflife=100000,
+  decay_learning_rate=True,
   use_cmudict=False,  # Use CMUDict during training to learn pronunciation of ARPAbet phonemes
 
   # Eval:
   max_iters=200,
   griffin_lim_iters=60,
   power=1.5,              # Power to raise magnitudes to prior to Griffin-Lim
+
+  #Global style token
+  use_gst=True,     # When false, the scripit will do as the paper  "Towards End-to-End Prosody Transfer for Expressive Speech Synthesis with Tacotron"
+  num_gst=10,
+  num_heads=4,       # Head number for multi-head attention
+  style_att_type="mlp_attention", # Attention type for style attention module (dot_attention, mlp_attention)
+  inference_token=-1,  # style token to weight during inference; default reverts to random weighting
+  inference_weight=0.5,  # weight to apply to the chosen style token, if any
 )
 
 
@@ -61,3 +70,4 @@ def hparams_debug_string():
   values = hparams.values()
   hp = ['  %s: %s' % (name, values[name]) for name in sorted(values)]
   return 'Hyperparameters:\n' + '\n'.join(hp)
+

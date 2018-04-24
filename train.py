@@ -58,6 +58,8 @@ def train(log_dir, args):
   coord = tf.train.Coordinator()
   with tf.variable_scope('datafeeder') as scope:
     feeder = DataFeeder(coord, input_path, hparams)
+    if args.max_hours > 0:
+      feeder.limit_data(args.max_hours, hparams)
 
   # Set up model:
   global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -75,7 +77,9 @@ def train(log_dir, args):
   saver = tf.train.Saver(max_to_keep=5, keep_checkpoint_every_n_hours=2)
 
   # Train!
-  with tf.Session() as sess:
+  tfconfig = tf.ConfigProto()
+  tfconfig.gpu_options.per_process_gpu_memory_fraction = args.gpu_fraction
+  with tf.Session(config=tfconfig) as sess:
     try:
       summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
       sess.run(tf.global_variables_initializer())
@@ -119,6 +123,10 @@ def train(log_dir, args):
             info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
           log('Input: %s' % sequence_to_text(input_seq))
 
+        if step == args.max_steps:
+          log('Finished {} steps; stopping.'.format(args.max_steps))
+          coord.request_stop()
+
     except Exception as e:
       log('Exiting due to exception: %s' % e, slack=True)
       traceback.print_exc()
@@ -127,13 +135,18 @@ def train(log_dir, args):
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--base_dir', default=os.path.expanduser('~/tacotron'))
+  parser.add_argument('--base_dir', default=os.path.expanduser('~/data'))
   parser.add_argument('--input', default='training/train.txt')
-  parser.add_argument('--model', default='tacotron')
+  parser.add_argument('--model', default='gst_tacotron')
   parser.add_argument('--name', help='Name of the run. Used for logging. Defaults to model name.')
   parser.add_argument('--hparams', default='',
     help='Hyperparameter overrides as a comma-separated list of name=value pairs')
   parser.add_argument('--restore_step', type=int, help='Global step to restore from checkpoint.')
+  parser.add_argument('--gpu_fraction', type=float, default=0.7, help='Fraction of GPU memory to use')
+  parser.add_argument('--max_hours', type=float, default=None,
+                      help='Maximum number of hours of training data to use')
+  parser.add_argument('--max_steps', type=int, default=None,
+                      help='Maximum number of training steps to run')
   parser.add_argument('--summary_interval', type=int, default=100,
     help='Steps between running summary ops.')
   parser.add_argument('--checkpoint_interval', type=int, default=1000,

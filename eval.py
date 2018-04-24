@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import numpy as np
 from hparams import hparams, hparams_debug_string
 from synthesizer import Synthesizer
 
@@ -16,6 +17,7 @@ sentences = [
   'The buses aren\'t the problem, they actually provide a solution.',
   'Does the quick brown fox jump over the lazy dog?',
   'Talib Kweli confirmed to AllHipHop that he will be releasing an album in the next year.',
+  'Who wants some chicken?'
 ]
 
 
@@ -28,14 +30,23 @@ def get_output_base_path(checkpoint_path):
 
 def run_eval(args):
   print(hparams_debug_string())
-  synth = Synthesizer()
-  synth.load(args.checkpoint)
+  is_teacher_force = False
+  mel_targets = args.mel_targets
+  if args.mel_targets is not None:
+    is_teacher_force = True
+    mel_targets = np.load(args.mel_targets)
+  synth = Synthesizer(teacher_forcing_generating=is_teacher_force)
+  synth.load(args.checkpoint, args.reference_mel, args.model)
   base_path = get_output_base_path(args.checkpoint)
   for i, text in enumerate(sentences):
-    path = '%s-%d.wav' % (base_path, i)
+    path = '%s-%d' % (base_path, i)
+    wav_path = '%s.wav' % (path)
+    mel_path = '%s-mel.npy' % (path)
     print('Synthesizing: %s' % path)
-    with open(path, 'wb') as f:
-      f.write(synth.synthesize(text))
+    wav, mel = synth.synthesize(text)
+    with open(wav_path, 'wb') as f:
+      f.write(wav)
+    np.save(mel_path, mel, allow_pickle=False)
 
 
 def main():
@@ -43,6 +54,9 @@ def main():
   parser.add_argument('--checkpoint', required=True, help='Path to model checkpoint')
   parser.add_argument('--hparams', default='',
     help='Hyperparameter overrides as a comma-separated list of name=value pairs')
+  parser.add_argument('--model', default='gst_tacotron', help='model name')
+  parser.add_argument('--reference_mel', default=None, help='Reference mel path')
+  parser.add_argument('--mel_targets', default=None, help='Mel-targets path, used when use teacher_force generation')
   args = parser.parse_args()
   os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
   hparams.parse(args.hparams)

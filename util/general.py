@@ -1,5 +1,6 @@
-from .tacotron import Tacotron
-from .gst_tacotron_2 import GSTTacotron2
+""" General utility methods. """
+from models.tacotron import Tacotron
+from models.gst_tacotron_2 import GSTTacotron2
 
 
 def create_model(name, hparams):
@@ -9,4 +10,3 @@ def create_model(name, hparams):
     return GSTTacotron2(hparams)
   else:
     raise Exception('Unknown model: ' + name)
-

@@ -63,6 +63,20 @@ class DataFeeder(threading.Thread):
       self._cmudict = None
 
 
+  def limit_data(self, max_hours, hparams):
+    cutoff = len(self._metadata)
+    total = 0
+    adjusted_max = max_hours * 3600000 / hparams.frame_shift_ms
+    for i, x in enumerate(self._metadata):
+      total += int(x[2])
+      if total >= adjusted_max:
+        cutoff = i
+        break
+    self._metadata = self._metadata[:cutoff + 1]
+    hours = total * hparams.frame_shift_ms / 3600000
+    log('Limited metadata to %d examples (%.2f hours)' % (cutoff, hours))
+
+
   def start_in_session(self, session):
     self._session = session
     self.start()
