@@ -68,7 +68,7 @@ def _symbols_to_sequence(symbols):
 
 
 def _ipa_to_sequence(text):
-  return _symbols_to_sequence(['@' + s for s in text])
+  return _symbols_to_sequence(['@' + s if s != ' ' else s for s in text])
 
 
 def _should_keep_symbol(s):

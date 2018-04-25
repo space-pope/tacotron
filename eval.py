@@ -20,6 +20,11 @@ sentences = [
   'Who wants some chicken?'
 ]
 
+if hparams.use_cmudict:
+  sentences += [
+    '{ˈtɑːlɛb ˈkwɛliː} confirmed to {ˈɔlˌhɪphɔp} that he will be releasing an album in the next year.',
+  ]
+
 
 def get_output_base_path(checkpoint_path):
   base_dir = os.path.dirname(checkpoint_path)
@@ -40,10 +45,13 @@ def run_eval(args):
   base_path = get_output_base_path(args.checkpoint)
   for i, text in enumerate(sentences):
     path = '%s-%d' % (base_path, i)
+    text_path = '%s.txt' % (path)
     wav_path = '%s.wav' % (path)
     mel_path = '%s-mel.npy' % (path)
     print('Synthesizing: %s' % path)
     wav, mel = synth.synthesize(text)
+    with open(text_path, 'w') as f:
+      f.write(text)
     with open(wav_path, 'wb') as f:
       f.write(wav)
     np.save(mel_path, mel, allow_pickle=False)
