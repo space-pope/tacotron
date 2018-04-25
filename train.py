@@ -119,9 +119,11 @@ def train(log_dir, args):
             model.inputs[0], model.linear_outputs[0], model.alignments[0]])
           waveform = audio.inv_spectrogram(spectrogram.T)
           audio.save_wav(waveform, os.path.join(log_dir, 'step-%d-audio.wav' % step))
+          input_text = sequence_to_text(input_seq)
           plot.plot_alignment(alignment, os.path.join(log_dir, 'step-%d-align.png' % step),
-            info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
-          log('Input: %s' % sequence_to_text(input_seq))
+            info='%s\n\n%s, %s, %s, step=%d, loss=%.5f' %
+                              (input_text, args.model, commit, time_string(), step, loss))
+          log('Input: %s' % input_text)
 
         if step == args.max_steps:
           log('Finished {} steps; stopping.'.format(args.max_steps))

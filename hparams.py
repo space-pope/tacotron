@@ -49,7 +49,7 @@ hparams = tf.contrib.training.HParams(
   initial_learning_rate=0.001,
   learning_rate_decay_halflife=100000,
   decay_learning_rate=True,
-  use_cmudict=False,  # Use CMUDict during training to learn pronunciation of ARPAbet phonemes
+  use_cmudict=False,  # Use CMUDict during training to learn pronunciation of IPA phonemes
 
   # Eval:
   max_iters=200,

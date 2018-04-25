@@ -12,16 +12,18 @@ def test_text_to_sequence():
   assert text_to_sequence('', []) == [1]
   assert text_to_sequence('Hi!', []) == [9, 36, 54, 1]
   assert text_to_sequence('"A"_B', []) == [2, 3, 1]
-  assert text_to_sequence('A {AW1 S} B', []) == [2, 64, 83, 132, 64, 3, 1]
+  assert text_to_sequence('A {aʊʃ} B', []) == [2, 64, 67, 99, 98, 64, 3, 1]
+  # assert text_to_sequence('A {aʊ ʃ} B', []) == [2, 64, 83, 132, 64, 3, 1]
   assert text_to_sequence('Hi', ['lowercase']) == [35, 36, 1]
-  assert text_to_sequence('A {AW1 S}  B', ['english_cleaners']) == [28, 64, 83, 132, 64, 29, 1]
+  assert text_to_sequence('A {aʊʃ}  B', ['english_cleaners']) == [28, 64, 67, 99, 98, 64, 29, 1]
+  # assert text_to_sequence('A {aʊ ʃ}  B', ['english_cleaners']) == [28, 64, 83, 132, 64, 29, 1]
 
 
 def test_sequence_to_text():
   assert sequence_to_text([]) == ''
   assert sequence_to_text([1]) == '~'
   assert sequence_to_text([9, 36, 54, 1]) == 'Hi!~'
-  assert sequence_to_text([2, 64, 83, 132, 64, 3]) == 'A {AW1 S} B'
+  assert sequence_to_text([2, 64, 67, 99, 98, 64, 3]) == 'A {aʊʃ} B'
 
 
 def test_collapse_whitespace():

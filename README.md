@@ -139,8 +139,8 @@ Pull requests are welcome!
 
   * You can train with [CMUDict](http://www.speech.cs.cmu.edu/cgi-bin/cmudict) by downloading the
     dictionary to ~/tacotron/training and then passing the flag `--hparams="use_cmudict=True"` to
-    train.py. This will allow you to pass ARPAbet phonemes enclosed in curly braces at eval
-    time to force a particular pronunciation, e.g. `Turn left on {HH AW1 S S T AH0 N} Street.`
+    train.py. This will allow you to pass IPA notation enclosed in curly braces at eval
+    time to force a particular pronunciation, e.g. `Turn left on {hjustən} Street.`
 
   * If you pass a Slack incoming webhook URL as the `--slack_url` flag to train.py, it will send
     you progress updates every 1000 steps.

@@ -50,13 +50,13 @@ class DataFeeder(threading.Thread):
     self.linear_targets.set_shape(self._placeholders[3].shape)
 
     # Load CMUDict: If enabled, this will randomly substitute some words in the training data with
-    # their ARPABet equivalents, which will allow you to also pass ARPABet to the model for
+    # their IPA equivalents, which will allow you to also pass IPA to the model for
     # synthesis (useful for proper nouns, etc.)
     if hparams.use_cmudict:
-      cmudict_path = os.path.join(self._datadir, 'cmudict-0.7b')
+      cmudict_path = os.path.join(self._datadir, 'cmudict-0.7b-ipa.txt')
       if not os.path.isfile(cmudict_path):
         raise Exception('If use_cmudict=True, you must download ' +
-          'http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/cmudict-0.7b to %s'  % cmudict_path)
+          'https://raw.githubusercontent.com/menelik3/cmudict-ipa/master/cmudict-0.7b-ipa.txt'  % cmudict_path)
       self._cmudict = cmudict.CMUDict(cmudict_path, keep_ambiguous=False)
       log('Loaded CMUDict with %d unambiguous entries' % len(self._cmudict))
     else:
@@ -120,7 +120,7 @@ class DataFeeder(threading.Thread):
 
     text = meta[3]
     if self._cmudict and random.random() < _p_cmudict:
-      text = ' '.join([self._maybe_get_arpabet(word) for word in text.split(' ')])
+      text = ' '.join([self._maybe_get_ipa(word) for word in text.split(' ')])
 
     input_data = np.asarray(text_to_sequence(text, self._cleaner_names), dtype=np.int32)
     linear_target = np.load(os.path.join(self._datadir, meta[0]))
@@ -128,9 +128,10 @@ class DataFeeder(threading.Thread):
     return (input_data, mel_target, linear_target, len(linear_target))
 
 
-  def _maybe_get_arpabet(self, word):
-    arpabet = self._cmudict.lookup(word)
-    return '{%s}' % arpabet[0] if arpabet is not None and random.random() < 0.5 else word
+  def _maybe_get_ipa(self, word):
+    strip_emphasis = random.random() < 0.7
+    ipa = self._cmudict.lookup(word, strip_emphasis)
+    return '{%s}' % ipa[0] if ipa is not None and random.random() < 0.5 else word
 
 
 def _prepare_batch(batch, outputs_per_step):
