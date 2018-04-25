@@ -19,7 +19,7 @@ def test_cmudict():
   assert len(c) == 6
   assert len(cmudict.valid_symbols) == 41
   assert c.lookup('ADVERSITY') == ['ædˈvɝːsɪˌtiː']
-  assert c.strip_emphasis(c.lookup('ADVERSITY')[0]) == 'ædvɝsɪti'
+  assert c.lookup('ADVERSITY', True)[0] == 'ædvɝsɪti'
   assert c.lookup('BarberShop') == ['ˈbɑːrbɝˌʃɑːp']
   assert c.lookup("You'll") == ['ˈjuːl']
   assert c.lookup("'tis") == ['ˈtɪz']
@@ -29,6 +29,7 @@ def test_cmudict():
     'ˌædˈvɝːs'
   ]
   assert c.lookup('') == None
+  assert c.lookup('', True) == None
   assert c.lookup('foo') == None
   assert c.lookup(')paren') == None
 

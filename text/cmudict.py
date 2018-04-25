@@ -33,7 +33,7 @@ class CMUDict:
   def lookup(self, word, strip_emphasis=False):
     '''Returns a list of IPA pronunciations of the given word.'''
     pronunciations = self._entries.get(word.upper())
-    if strip_emphasis:
+    if pronunciations and strip_emphasis:
       pronunciations = [self.strip_emphasis(p) for p in pronunciations]
     return pronunciations
 
