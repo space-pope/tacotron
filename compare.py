@@ -16,11 +16,11 @@ def main():
     help='hyperparameter overrides as a comma-separated list of name=value pairs')
   parser.add_argument('--restore_step', type=int, help='global step to restore from checkpoint.')
   parser.add_argument('--gpu_fraction', type=float, default=0.7, help='fraction of gpu memory to use')
-  parser.add_argument('--max_hours', type=float, default=None,
+  parser.add_argument('--max_hours', type=float, default=0,
                       help='maximum number of hours of training data to use')
-  parser.add_argument('--max_steps', type=int, default=None,
+  parser.add_argument('--max_steps', type=int, default=0,
                       help='maximum number of training steps to run')
-  parser.add_argument('--max_epochs', type=int, default=None,
+  parser.add_argument('--max_epochs', type=int, default=0,
                       help='maximum number of training epochs to run')
   parser.add_argument('--summary_interval', type=int, default=100,
     help='steps between running summary ops.')
