@@ -195,11 +195,15 @@ class GSTTacotron2():
       self.mel_loss = tf.reduce_mean(tf.abs(self.mel_targets - self.mel_outputs))
 
       # Prioritize loss for frequencies under 2000 Hz.
-      l1 = tf.abs(self.linear_targets - self.linear_outputs)
-      n_priority_freq = int(2000 / (hp.sample_rate * 0.5) * hp.num_freq)
-      self.linear_loss = 0.5 * tf.reduce_mean(l1) + 0.5 * tf.reduce_mean(l1[:,:,0:n_priority_freq])
+      if self.linear_targets is not None:
+        l1 = tf.abs(self.linear_targets - self.linear_outputs)
+        n_priority_freq = int(2000 / (hp.sample_rate * 0.5) * hp.num_freq)
+        self.linear_loss = 0.5 * tf.reduce_mean(l1) + 0.5 * tf.reduce_mean(l1[:,:,0:n_priority_freq])
+      else:
+        self.linear_loss = 0
 
-      self.loss = self.decoder_loss + self.mel_loss + self.linear_loss
+      self.loss = self.test_loss = (self.decoder_loss + self.mel_loss +
+                                    self.linear_loss)
 
 
   def add_optimizer(self, global_step):

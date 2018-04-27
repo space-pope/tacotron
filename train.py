@@ -41,6 +41,13 @@ def add_stats(model):
     return tf.summary.merge_all()
 
 
+def add_test_stats(model):
+  with tf.variable_scope('test_stats') as scope:
+    tf.summary.scalar('test_loss', model.test_loss)
+    tf.summary.scalar('learning_rate', model.learning_rate)
+  return tf.summary.merge_all()
+
+
 def time_string():
   return datetime.now().strftime('%Y-%m-%d %H:%M')
 
@@ -60,6 +67,9 @@ def train(log_dir, args):
     feeder = DataFeeder(coord, input_path, hparams)
     if args.max_hours > 0:
       feeder.limit_data(args.max_hours, hparams)
+    epochs = 0
+    epoch_gen = _next_epoch(feeder.epoch_length)
+    next_epoch = next(epoch_gen)
 
   # Set up model:
   global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -69,6 +79,7 @@ def train(log_dir, args):
     model.add_loss()
     model.add_optimizer(global_step)
     stats = add_stats(model)
+    test_stats = add_test_stats(model)
 
   # Bookkeeping:
   step = 0
@@ -125,6 +136,19 @@ def train(log_dir, args):
                               (input_text, args.model, commit, time_string(), step, loss))
           log('Input: %s' % input_text)
 
+        if step == next_epoch:
+          epochs += 1
+          log('Epoch {} complete; testing model...'.format(epochs))
+          losses = [sess.run(model.test_loss, feed_dict=fed)
+                    for fed in feeder.fetch_test_data()]
+          loss = sum(losses) / len(losses)
+          log('Test loss: {}'.format(loss))
+          summary_writer.add_summary(sess.run(test_stats), step)
+          next_epoch = next(epoch_gen)
+          if epochs == args.max_epochs:
+            log('Finished {} epochs; stopping.'.format(args.max_epochs))
+            coord.request_stop()
+
         if step == args.max_steps:
           log('Finished {} steps; stopping.'.format(args.max_steps))
           coord.request_stop()
@@ -134,30 +158,42 @@ def train(log_dir, args):
       traceback.print_exc()
       coord.request_stop(e)
 
+  coord.wait_for_stop()
+  tf.reset_default_graph()
+
+
+def _next_epoch(epoch_length):
+  current_epoch_end = epoch_length
+  while True:
+    yield current_epoch_end
+    current_epoch_end += epoch_length
+
 
 def main():
-  parser = argparse.ArgumentParser()
+  parser = argparse.argumentparser()
   parser.add_argument('--base_dir', default=os.path.expanduser('~/data'))
   parser.add_argument('--input', default='training/train.txt')
-  parser.add_argument('--model', default='gst_tacotron')
-  parser.add_argument('--name', help='Name of the run. Used for logging. Defaults to model name.')
+  parser.add_argument('--model', default='gst_tacotron_2')
+  parser.add_argument('--name', help='name of the run. used for logging. defaults to model name.')
   parser.add_argument('--hparams', default='',
-    help='Hyperparameter overrides as a comma-separated list of name=value pairs')
-  parser.add_argument('--restore_step', type=int, help='Global step to restore from checkpoint.')
-  parser.add_argument('--gpu_fraction', type=float, default=0.7, help='Fraction of GPU memory to use')
+    help='hyperparameter overrides as a comma-separated list of name=value pairs')
+  parser.add_argument('--restore_step', type=int, help='global step to restore from checkpoint.')
+  parser.add_argument('--gpu_fraction', type=float, default=0.7, help='fraction of gpu memory to use')
   parser.add_argument('--max_hours', type=float, default=None,
-                      help='Maximum number of hours of training data to use')
+                      help='maximum number of hours of training data to use')
   parser.add_argument('--max_steps', type=int, default=None,
-                      help='Maximum number of training steps to run')
+                      help='maximum number of training steps to run')
+  parser.add_argument('--max_epochs', type=int, default=None,
+                      help='maximum number of training epochs to run')
   parser.add_argument('--summary_interval', type=int, default=100,
-    help='Steps between running summary ops.')
+    help='steps between running summary ops.')
   parser.add_argument('--checkpoint_interval', type=int, default=1000,
-    help='Steps between writing checkpoints.')
-  parser.add_argument('--slack_url', help='Slack webhook URL to get periodic reports.')
-  parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
-  parser.add_argument('--git', action='store_true', help='If set, verify that the client is clean.')
+    help='steps between writing checkpoints.')
+  parser.add_argument('--slack_url', help='slack webhook url to get periodic reports.')
+  parser.add_argument('--tf_log_level', type=int, default=1, help='tensorflow c++ log level.')
+  parser.add_argument('--git', action='store_true', help='if set, verify that the client is clean.')
   args = parser.parse_args()
-  os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
+  os.environ['tf_cpp_min_log_level'] = str(args.tf_log_level)
   run_name = args.name or args.model
   log_dir = os.path.join(args.base_dir, 'logs-%s' % run_name)
   os.makedirs(log_dir, exist_ok=True)

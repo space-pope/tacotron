@@ -65,7 +65,6 @@ class Synthesizer:
       feed_dict.update({self.model.reference_mel: np.asarray(reference_mel, dtype=np.float32)})
     wav, mel = self.session.run([self.wav_output, self.mel_spectogram], feed_dict=feed_dict)
    # wav, style_embeddings = self.session.run([self.wav_output, self.model.style_embeddings], feed_dict=feed_dict)
-    wav = audio.inv_preemphasis(wav)
     wav = wav[:audio.find_endpoint(wav)]
     out = io.BytesIO()
     audio.save_wav(wav, out)

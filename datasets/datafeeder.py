@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import os
 import random
@@ -11,6 +12,7 @@ from util.infolog import log
 
 _batches_per_group = 32
 _p_cmudict = 0.5
+_p_train_data = 0.8
 _pad = 0
 
 
@@ -28,8 +30,17 @@ class DataFeeder(threading.Thread):
     self._datadir = os.path.dirname(metadata_filename)
     with open(metadata_filename, encoding='utf-8') as f:
       self._metadata = [line.strip().split('|') for line in f]
-      hours = sum((int(x[2]) for x in self._metadata)) * hparams.frame_shift_ms / (3600 * 1000)
-      log('Loaded metadata for %d examples (%.2f hours)' % (len(self._metadata), hours))
+      # round up the test samples to the nearest batch
+      num_samples = len(self._metadata)
+      test_samples = int(num_samples * (1.0 - _p_train_data))
+      test_samples += hparams.batch_size - (test_samples % hparams.batch_size)
+      self._max_train_offset = num_samples - test_samples
+      hours = sum((int(x[2]) for x in self._metadata[:self._max_train_offset])) \
+              * hparams.frame_shift_ms / (3600 * 1000)
+      log('Loaded metadata for %d examples (%.2f hours)' % (self._max_train_offset, hours))
+      self.epoch_length = math.ceil(self._max_train_offset / hparams.batch_size)
+      self._test_meta = self._metadata[self._max_train_offset:]
+      self.test_batches = test_samples // hparams.batch_size
 
     # Create placeholders for inputs and targets. Don't specify batch size because we want to
     # be able to feed different sized batches at eval time.
@@ -49,6 +60,19 @@ class DataFeeder(threading.Thread):
     self.mel_targets.set_shape(self._placeholders[2].shape)
     self.linear_targets.set_shape(self._placeholders[3].shape)
 
+    # Create a second queue for test data
+    self._test_placeholders = [
+      tf.placeholder(tf.int32, [None, None], 'test_inputs'),
+      tf.placeholder(tf.int32, [None], 'test_input_lengths'),
+      tf.placeholder(tf.float32, [None, None, hparams.num_mels], 'test_mel_targets'),
+    ]
+    test_queue = tf.FIFOQueue(8, [tf.int32, tf.int32, tf.float32], name='test_queue')
+    # self._enqueue_test_op = test_queue.enqueue(self._test_placeholders)
+    self.test_inputs, self.test_input_lengths, self.test_mel_targets = test_queue.dequeue()
+    self.test_inputs.set_shape(self._test_placeholders[0].shape)
+    self.test_input_lengths.set_shape(self._test_placeholders[1].shape)
+    self.test_mel_targets.set_shape(self._test_placeholders[2].shape)
+
     # Load CMUDict: If enabled, this will randomly substitute some words in the training data with
     # their IPA equivalents, which will allow you to also pass IPA to the model for
     # synthesis (useful for proper nouns, etc.)
@@ -64,7 +88,7 @@ class DataFeeder(threading.Thread):
 
 
   def limit_data(self, max_hours, hparams):
-    cutoff = len(self._metadata)
+    cutoff = self._max_train_offset
     total = 0
     adjusted_max = max_hours * 3600000 / hparams.frame_shift_ms
     for i, x in enumerate(self._metadata):
@@ -73,6 +97,7 @@ class DataFeeder(threading.Thread):
         cutoff = i
         break
     self._metadata = self._metadata[:cutoff + 1]
+    self._max_train_offset = int(cutoff * _p_train_data)
     hours = total * hparams.frame_shift_ms / 3600000
     log('Limited metadata to %d examples (%.2f hours)' % (cutoff, hours))
 
@@ -99,25 +124,23 @@ class DataFeeder(threading.Thread):
     r = self._hparams.outputs_per_step
     examples = [self._get_next_example() for i in range(n * _batches_per_group)]
 
-    # Bucket examples based on similar output sequence length for efficiency:
-    examples.sort(key=lambda x: x[-1])
-    batches = [examples[i:i+n] for i in range(0, len(examples), n)]
-    random.shuffle(batches)
-
+    batches = _batch_examples(examples, n)
     log('Generated %d batches of size %d in %.03f sec' % (len(batches), n, time.time() - start))
     for batch in batches:
       feed_dict = dict(zip(self._placeholders, _prepare_batch(batch, r)))
       self._session.run(self._enqueue_op, feed_dict=feed_dict)
 
-
   def _get_next_example(self):
     '''Loads a single example (input, mel_target, linear_target, cost) from disk'''
-    if self._offset >= len(self._metadata):
+    if self._offset >= self._max_train_offset:
       self._offset = 0
       random.shuffle(self._metadata)
-    meta = self._metadata[self._offset]
+    example = self._load_example(self._offset, self._metadata)
     self._offset += 1
+    return example
 
+  def _load_example(self, index, metadata):
+    meta = metadata[index]
     text = meta[3]
     if self._cmudict and random.random() < _p_cmudict:
       text = ' '.join([self._maybe_get_ipa(word) for word in text.split(' ')])
@@ -127,11 +150,31 @@ class DataFeeder(threading.Thread):
     mel_target = np.load(os.path.join(self._datadir, meta[1]))
     return (input_data, mel_target, linear_target, len(linear_target))
 
-
   def _maybe_get_ipa(self, word):
     strip_emphasis = random.random() < 0.7
     ipa = self._cmudict.lookup(word, strip_emphasis)
     return '{%s}' % ipa[0] if ipa is not None and random.random() < 0.5 else word
+
+  def fetch_test_data(self):
+    start = time.time()
+    # Read a group of examples:
+    n = self._hparams.batch_size
+    r = self._hparams.outputs_per_step
+    examples = [self._load_example(i, self._test_meta)
+                for i in range(0, len(self._test_meta))]
+    batches = _batch_examples(examples, n)
+
+    for batch in batches:
+      yield dict(zip(self._test_placeholders, _prepare_batch(batch, r)[:-1]))
+    self._test_meta = self._metadata[self._max_train_offset:]
+
+
+def _batch_examples(examples, n):
+  # Bucket examples based on similar output sequence length for efficiency:
+  examples.sort(key=lambda x: x[-1])
+  batches = [examples[i:i+n] for i in range(0, len(examples), n)]
+  random.shuffle(batches)
+  return batches
 
 
 def _prepare_batch(batch, outputs_per_step):
